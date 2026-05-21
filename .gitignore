@@ -1,0 +1,11 @@
+# Ignorar carpetas internas de Terraform
+.terraform/
+*.terraform*
+
+# Ignorar archivos de estado de Terraform (Contienen secretos)
+*.tfstate
+*.tfstate.*
+
+# Ignorar archivos de variables secretas si existieran
+*.tfvars
+*.tfvars.json

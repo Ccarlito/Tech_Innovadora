@@ -1,0 +1,114 @@
+# .github/workflows/cd.yml
+name: CD - Innovatech Chile
+
+on:
+  push:
+    branches:
+      - release/0.1.1
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ─────────────────────────────────────
+      # 1. CHECKOUT
+      # ─────────────────────────────────────
+      - name: Checkout del código
+        uses: actions/checkout@v3
+
+      # ─────────────────────────────────────
+      # 2. CREDENCIALES AWS
+      # ─────────────────────────────────────
+      - name: Configurar credenciales AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ─────────────────────────────────────
+      # 3. LOGIN EN ECR
+      # ─────────────────────────────────────
+      - name: Login en ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ─────────────────────────────────────
+      # 4. BUILD Y PUSH - BACKEND VENTAS
+      # ─────────────────────────────────────
+      - name: Build y Push - Backend Ventas
+        run: |
+          docker build --platform linux/amd64 \
+            -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/innovatech-chile-backend-ventas:latest \
+            ./back-Ventas_SpringBoot/Springboot-API-REST
+          docker push \
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/innovatech-chile-backend-ventas:latest
+
+      # ─────────────────────────────────────
+      # 5. BUILD Y PUSH - BACKEND DESPACHOS
+      # ─────────────────────────────────────
+      - name: Build y Push - Backend Despachos
+        run: |
+          docker build --platform linux/amd64 \
+            -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/innovatech-chile-backend-despachos:latest \
+            ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+          docker push \
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/innovatech-chile-backend-despachos:latest
+
+      # ─────────────────────────────────────
+      # 6. BUILD Y PUSH - FRONTEND
+      # ─────────────────────────────────────
+      - name: Build y Push - Frontend
+        run: |
+          docker build --platform linux/amd64 \
+            -t ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/innovatech-chile-frontend:latest \
+            ./front_despacho
+          docker push \
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/innovatech-chile-frontend:latest
+
+      # ─────────────────────────────────────
+      # 7. DEPLOY EN EC2 BACKEND (ventas + despachos + mysql)
+      # ─────────────────────────────────────
+      - name: Deploy en EC2 Backend
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_BACKEND_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Login en ECR desde la EC2
+            aws ecr get-login-password --region us-east-1 | \
+              docker login --username AWS --password-stdin \
+              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+
+            # Pull de las imágenes nuevas
+            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/innovatech-chile-backend-ventas:latest
+            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/innovatech-chile-backend-despachos:latest
+
+            # Reiniciar solo los backends sin bajar mysql
+            cd /home/ec2-user/app
+            docker compose up -d --no-deps --pull always backend-ventas backend-despacho
+
+      # ─────────────────────────────────────
+      # 8. DEPLOY EN EC2 FRONTEND
+      # ─────────────────────────────────────
+      - name: Deploy en EC2 Frontend
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_FRONTEND_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            aws ecr get-login-password --region us-east-1 | \
+              docker login --username AWS --password-stdin \
+              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+
+            docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/innovatech-chile-frontend:latest
+
+            cd /home/ec2-user/app
+            docker compose up -d --no-deps --pull always frontend
