@@ -97,15 +97,11 @@ AWS_ACCOUNT_ID          |     Tu número de cuenta AWS (12 dígitos) |    Armar 
 EC2_SSH_KEY             |     Contenido completo del .pem          |    Conectarse por SSH a la EC2
 EC2_BACKEND_HOST        |     IP que salió del terraform output    |    Saber a qué EC2 conectarse (solo en los 2 repos de backend)
 EC2_FRONTEND_HOST       |     IP que salió del terraform output    |    Saber a qué EC2 conectarse (solo en el repo de frontend)
+ 6 y 7
+scp -i innovatech-key.pem docker-compose.yml ec2-user@<backend_ip>:/home/ec2-user/app/
+scp -i innovatech-key.pem .env ec2-user@<backend_ip>:/home/ec2-user/app/
+scp -i innovatech-key.pem docker-compose.yml ec2-user@<frontend_ip>:/home/ec2-user/app/
 
-6. Subir docker-compose.yml y .env a la EC2 backend
-ssh -i tu-clave.pem ec2-user@<backend_ip> "mkdir -p /home/ec2-user/app"
-scp -i tu-clave.pem docker-compose.yml ec2-user@<backend_ip>:/home/ec2-user/app/
-scp -i tu-clave.pem .env ec2-user@<backend_ip>:/home/ec2-user/app/
-
-7. Subir docker-compose.yml a la EC2 frontend (solo necesita levantar el contenedor)
-ssh -i tu-clave.pem ec2-user@<frontend_ip> "mkdir -p /home/ec2-user/app"
-scp -i tu-clave.pem docker-compose.yml ec2-user@<frontend_ip>:/home/ec2-user/app/
 
 8. Push a release/0.1.1 → el workflow se dispara solo
 
