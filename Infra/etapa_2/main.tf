@@ -156,11 +156,14 @@ resource "aws_instance" "frontend" {
   user_data = <<-EOF
     #!/bin/bash
     yum update -y
-    yum install -y docker
+    yum install -y docker aws-cli
     systemctl start docker
     systemctl enable docker
     usermod -aG docker ec2-user
+
+    # Crear carpeta con permisos correctos desde el inicio
     mkdir -p /home/ec2-user/app
+    chown -R ec2-user:ec2-user /home/ec2-user/app
   EOF
 
   tags = { Name = "${var.project_name}-frontend-server" }
@@ -178,16 +181,20 @@ resource "aws_instance" "backend" {
   user_data = <<-EOF
     #!/bin/bash
     yum update -y
-    yum install -y docker
+    yum install -y docker aws-cli
     systemctl start docker
     systemctl enable docker
     usermod -aG docker ec2-user
-    mkdir -p /home/ec2-user/app
+
     # Docker Compose v2
     curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
       -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
-    ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+    ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+
+    # Crear carpeta con permisos correctos desde el inicio
+    mkdir -p /home/ec2-user/app
+    chown -R ec2-user:ec2-user /home/ec2-user/app
   EOF
 
   tags = { Name = "${var.project_name}-backend-server" }
