@@ -19,7 +19,7 @@ data "aws_iam_role" "lab_role" {
 }
 
 resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "${var.project_name}-ec2-profile"
+  name = "${var.project_name}-ec2-profile-v2"    # <- cambia a v2
   role = data.aws_iam_role.lab_role.name
 }
 
