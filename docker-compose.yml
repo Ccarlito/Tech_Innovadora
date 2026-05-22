@@ -1,24 +1,19 @@
 services:
-  # 1. BASE DE DATOS (Con volumen nombrado para persistencia)
   mysql:
     image: mysql:8
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
-    ports:
-      - "3306:3306"
     volumes:
-      - mysql_data:/var/lib/mysql # <- PUNTO 2 DE LA RÚBRICA: Named volume
+      - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # 2. BACKEND DE VENTAS (Ruta corregida para el Pipeline)
   backend-ventas:
-    build: ./back-Ventas_SpringBoot # <- Alineado con el archivo .yml
-    image: tech_ventas:1.0
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/innovatech-chile-backend-ventas:latest
     ports:
       - "8080:8080"
     environment:
@@ -27,15 +22,12 @@ services:
       DB_NAME: ${MYSQL_DATABASE}
       DB_USERNAME: root
       DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      DB_HOST: mysql
     depends_on:
       mysql:
         condition: service_healthy
 
-  # 3. BACKEND DE DESPACHO (Ruta corregida para el Pipeline)
   backend-despacho:
-    build: ./back-Despachos_SpringBoot # <- Alineado con el archivo .yml
-    image: tech_despacho:1.0
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/innovatech-chile-backend-despachos:latest
     ports:
       - "8081:8081"
     environment:
@@ -44,21 +36,14 @@ services:
       DB_NAME: ${MYSQL_DATABASE}
       DB_USERNAME: root
       DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      DB_HOST: mysql
     depends_on:
       mysql:
         condition: service_healthy
 
-  # 4. FRONTEND (Ruta corregida para el Pipeline)
   frontend:
-    build: ./front_despacho # <- Alineado con el archivo .yml
-    image: frontend:1.0
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/innovatech-chile-frontend:latest
     ports:
-      - "3000:80"
-    depends_on:
-      - backend-ventas
-      - backend-despacho
+      - "80:80"
 
-# DECLARACIÓN DEL VOLUMEN NOMBRADO
 volumes:
   mysql_data:

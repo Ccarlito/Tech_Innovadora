@@ -12,6 +12,19 @@ provider "aws" {
 }
 
 # ==========================================
+# IAM - USA EL ROL PREEXISTENTE DE AWS ACADEMY
+# ==========================================
+data "aws_iam_role" "lab_role" {
+  name = "LabRole"
+}
+
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "${var.project_name}-ec2-profile"
+  role = data.aws_iam_role.lab_role.name
+}
+
+
+# ==========================================
 # 1. RED VPC , SUBNETS Y GATEWAY
 # ==========================================
 
@@ -138,6 +151,7 @@ resource "aws_instance" "frontend" {
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.frontend.id]
   key_name               = var.key_pair_name
+  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name  # <- ECR access
 
   user_data = <<-EOF
     #!/bin/bash
@@ -145,6 +159,8 @@ resource "aws_instance" "frontend" {
     yum install -y docker
     systemctl start docker
     systemctl enable docker
+    usermod -aG docker ec2-user
+    mkdir -p /home/ec2-user/app
   EOF
 
   tags = { Name = "${var.project_name}-frontend-server" }
@@ -157,6 +173,7 @@ resource "aws_instance" "backend" {
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.backend.id]
   key_name               = var.key_pair_name
+  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name  # <- ECR access
 
   user_data = <<-EOF
     #!/bin/bash
@@ -164,9 +181,13 @@ resource "aws_instance" "backend" {
     yum install -y docker
     systemctl start docker
     systemctl enable docker
-    # Instalar Docker Compose de forma automatica
-    curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    usermod -aG docker ec2-user
+    mkdir -p /home/ec2-user/app
+    # Docker Compose v2
+    curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
+      -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
+    ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
   EOF
 
   tags = { Name = "${var.project_name}-backend-server" }
