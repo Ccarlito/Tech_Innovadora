@@ -92,7 +92,7 @@ jobs:
 
             # Reiniciar solo los backends sin bajar mysql
             cd /home/ec2-user/app
-            docker compose up -d --no-deps --pull always backend-ventas backend-despacho
+            sudo -E docker-compose up -d --no-deps --pull always backend-ventas backend-despacho
 
       # ─────────────────────────────────────
       # 8. DEPLOY EN EC2 FRONTEND
@@ -111,4 +111,4 @@ jobs:
             docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/innovatech-chile-frontend:latest
 
             cd /home/ec2-user/app
-            docker compose up -d --no-deps --pull always frontend
+            sudo -E docker-compose up -d --no-deps --pull always frontend
