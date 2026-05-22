@@ -4,7 +4,7 @@ name: CD - Innovatech Chile
 on:
   push:
     branches:
-      - release/0.1.1
+      - release/0.1.0
 
 env:
   AWS_REGION: us-east-1
