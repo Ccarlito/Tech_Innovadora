@@ -81,16 +81,19 @@ jobs:
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # Login en ECR desde la EC2
+            # Login como ec2-user
             aws ecr get-login-password --region us-east-1 | \
               docker login --username AWS --password-stdin \
               ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
 
-            # Pull de las imágenes nuevas
+            # Login también como root para docker-compose
+            aws ecr get-login-password --region us-east-1 | \
+              sudo docker login --username AWS --password-stdin \
+              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+
             docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/innovatech-chile-backend-ventas:latest
             docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/innovatech-chile-backend-despachos:latest
 
-            # Reiniciar solo los backends sin bajar mysql
             cd /home/ec2-user/app
             sudo -E docker-compose up -d --no-deps --pull always backend-ventas backend-despacho
 
@@ -106,6 +109,10 @@ jobs:
           script: |
             aws ecr get-login-password --region us-east-1 | \
               docker login --username AWS --password-stdin \
+              ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+
+            aws ecr get-login-password --region us-east-1 | \
+              sudo docker login --username AWS --password-stdin \
               ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
 
             docker pull ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/innovatech-chile-frontend:latest
