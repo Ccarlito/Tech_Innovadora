@@ -19,15 +19,13 @@ data "aws_iam_role" "lab_role" {
 }
 
 resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "${var.project_name}-ec2-profile-v2"    # <- cambia a v2
+  name = "${var.project_name}-ec2-profile-v3"
   role = data.aws_iam_role.lab_role.name
 }
 
-
 # ==========================================
-# 1. RED VPC , SUBNETS Y GATEWAY
+# 1. RED VPC, SUBNETS Y GATEWAY
 # ==========================================
-
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_hostnames = true
@@ -62,10 +60,8 @@ resource "aws_route_table_association" "public" {
 }
 
 # ==========================================
-# 2. SECURITY GROUPS (REQUISITO DE SEGURIDAD DE LA RÚBRICA)
+# 2. SECURITY GROUPS
 # ==========================================
-
-# SG para el Frontend (Público a Internet)
 resource "aws_security_group" "frontend" {
   name        = "${var.project_name}-frontend-sg"
   description = "Permite trafico HTTP externo para el Frontend"
@@ -75,13 +71,13 @@ resource "aws_security_group" "frontend" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # SSH para el pipeline de GitHub Actions
+    cidr_blocks = ["0.0.0.0/0"]
   }
   ingress {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Acceso Web público
+    cidr_blocks = ["0.0.0.0/0"]
   }
   egress {
     from_port   = 0
@@ -91,7 +87,6 @@ resource "aws_security_group" "frontend" {
   }
 }
 
-# SG para los Backends y la BD (Restringido)
 resource "aws_security_group" "backend" {
   name        = "${var.project_name}-backend-sg"
   description = "Solo permite trafico interno desde el Frontend y SSH"
@@ -101,19 +96,19 @@ resource "aws_security_group" "backend" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # SSH para el pipeline de GitHub Actions
+    cidr_blocks = ["0.0.0.0/0"]
   }
   ingress {
-    from_port   = 8080
-    to_port     = 8081
-    protocol    = "tcp"
-    security_groups = [aws_security_group.frontend.id] # Solo el Front puede consultar los backends
+    from_port       = 8080
+    to_port         = 8081
+    protocol        = "tcp"
+    security_groups = [aws_security_group.frontend.id]
   }
   ingress {
-    from_port   = 3306
-    to_port     = 3306
-    protocol    = "tcp"
-    self        = true # Permite comunicación interna con MySQL en la misma máquina
+    from_port = 3306
+    to_port   = 3306
+    protocol  = "tcp"
+    self      = true
   }
   egress {
     from_port   = 0
@@ -124,12 +119,11 @@ resource "aws_security_group" "backend" {
 }
 
 # ==========================================
-# 3. ORIGEN DE DATOS (ECR Y AMIs)
+# 3. ORIGEN DE DATOS
 # ==========================================
-
-data "aws_ecr_repository" "frontend" { name = "${var.project_name}-frontend" }
+data "aws_ecr_repository" "frontend"       { name = "${var.project_name}-frontend" }
 data "aws_ecr_repository" "back_despachos" { name = "${var.project_name}-backend-despachos" }
-data "aws_ecr_repository" "back_ventas" { name = "${var.project_name}-backend-ventas" }
+data "aws_ecr_repository" "back_ventas"    { name = "${var.project_name}-backend-ventas" }
 
 data "aws_ami" "amazon_linux" {
   most_recent = true
@@ -141,17 +135,15 @@ data "aws_ami" "amazon_linux" {
 }
 
 # ==========================================
-# 4. INSTANCIAS EC2 SEPARADAS (REQUISITO EXPLICITO)
+# 4. INSTANCIAS EC2
 # ==========================================
-
-# Instancia 1: Servidor Web Frontend
 resource "aws_instance" "frontend" {
   ami                    = data.aws_ami.amazon_linux.id
   instance_type          = "t3.micro"
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.frontend.id]
   key_name               = var.key_pair_name
-  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name  # <- ECR access
+  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
 
   user_data = <<-EOF
     #!/bin/bash
@@ -160,8 +152,12 @@ resource "aws_instance" "frontend" {
     systemctl start docker
     systemctl enable docker
     usermod -aG docker ec2-user
-
-    # Crear carpeta con permisos correctos desde el inicio
+    # Docker Compose v2
+    curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" \
+      -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+    ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+    # Carpeta con permisos correctos
     mkdir -p /home/ec2-user/app
     chown -R ec2-user:ec2-user /home/ec2-user/app
   EOF
@@ -169,14 +165,13 @@ resource "aws_instance" "frontend" {
   tags = { Name = "${var.project_name}-frontend-server" }
 }
 
-# Instancia 2: Servidor de Microservicios Backend y MySQL
 resource "aws_instance" "backend" {
   ami                    = data.aws_ami.amazon_linux.id
-  instance_type          = "t3.small" # t3.small tiene 2GB de RAM para aguantar los 2 backends + MySQL cómodos
+  instance_type          = "t3.small"
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.backend.id]
   key_name               = var.key_pair_name
-  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name  # <- ECR access
+  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
 
   user_data = <<-EOF
     #!/bin/bash
@@ -185,14 +180,12 @@ resource "aws_instance" "backend" {
     systemctl start docker
     systemctl enable docker
     usermod -aG docker ec2-user
-
     # Docker Compose v2
-    curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
+    curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64" \
       -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
     ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
-
-    # Crear carpeta con permisos correctos desde el inicio
+    # Carpeta con permisos correctos
     mkdir -p /home/ec2-user/app
     chown -R ec2-user:ec2-user /home/ec2-user/app
   EOF
